@@ -13,13 +13,13 @@ convertToGS imageName = system $ "convert " ++ imageName ++ " -resize 200x200 -g
 
 main :: IO ()
 main = do
-  x <- getArgs
-  z <- mapM_ convertToGS x >> mapM (readImage . ("gs_" ++)) x
+  x <-  getArgs
+  z <-  mapM_ convertToGS x >> mapM (readImage . ("gs_" ++)) x
   system "rm gs_*"
   let [ firstImage, secondImage, message ] = map toBinaryImage z
   let (generatedFirstImage, generatedSecondImage) = getBothImages $ generateFinalImages firstImage secondImage message
-  writePng "first.png"  generatedFirstImage
-  writePng "second.png" generatedSecondImage
+  writePng "1.png"  generatedFirstImage
+  writePng "2.png" generatedSecondImage
 
 data SuperPixel = S {a :: PixelYA8, b :: PixelYA8, c :: PixelYA8, d :: PixelYA8}
 
@@ -53,10 +53,10 @@ white g = fillPixels (replicate 4 N, g) 2 2
 condition :: BinaryPixel -> BinaryPixel -> BinaryPixel -> BinaryPixel
 condition f s x = if x == f then s else N
 
-generateRandomSuperPixel :: StdGen -> Pixel8 -> Pixel8 -> Pixel8 -> SuperPixel
-generateRandomSuperPixel g x y z = case (x, y, z) of
+genRanSP :: StdGen -> Pixel8 -> Pixel8 -> Pixel8 -> SuperPixel
+genRanSP g x y z = case (x, y, z) of
   (0  ,0  ,  0) -> let (bPixel, newG) = black g in let (sBPixel, _) = fillPixels (map (condition W B) bPixel,newG) 1 2 in makeSuperP $ zip bPixel sBPixel
-  (0  ,0  ,255) -> let (bPixel, _)    = black g in makeSuperP $ zip bPixel bPixel
+  (0  ,0  ,255) -> let (bPixel, _)    = black g in makeSuperP $ zip bPixel bPixel -- make two lets in different lines.
   (255,255,255) -> let (wPixel, _)    = white g in makeSuperP $ zip wPixel wPixel
   (255,255,0  ) -> let (wPixel, _)    = white g in makeSuperP $ zip wPixel $ map (\v -> if v == B then W else B) wPixel
   (0  ,255,0  ) -> let (bPixel, newG) = black g in let (wPixel, _)  = fillPixels (map (condition W B) bPixel, newG) 2 1 in makeSuperP $ zip bPixel wPixel
@@ -64,12 +64,12 @@ generateRandomSuperPixel g x y z = case (x, y, z) of
   (255,0  ,255) -> let (wPixel, newG) = white g in let (bPixel, _)  = fillPixels (map (condition B B) wPixel, newG) 1 1 in makeSuperP $ zip wPixel bPixel
   (255,0  ,0  ) -> let (wPixel, newG) = white g in let (bPixel, _)  = fillPixels (map (condition W B) wPixel, newG) 1 1 in makeSuperP $ zip wPixel bPixel
 
-
 generateFinalImages :: Image Pixel8 -> Image Pixel8 -> Image Pixel8 -> Image PixelYA8
 generateFinalImages x@(Image w h _) y z = generateImage f (2*w) (2*h) where
 
   superPixelMap :: M.Map (Int, Int) SuperPixel
-  superPixelMap = M.fromList [((i, j), generateRandomSuperPixel (mkStdGen $ i+j) (pixelAt x i j) (pixelAt y i j) (pixelAt z i j)) | i <- [0..w-1], j <- [0..h-1]]
+  -- superPixelMap = M.fromList [((i, j), genRanSP (mkStdGen $ i+j) (pixelAt x i j) (pixelAt y i j) (pixelAt z i j)) | i <- [0..w-1], j <- [0..h-1]]
+  superPixelMap = M.fromList $ zipWith (\(i,j) r -> ((i,j), genRanSP (mkStdGen r) (pixelAt x i j) (pixelAt y i j) (pixelAt z i j))) [(i, j) | i <- [0..w-1], j <- [0..h-1]] (randoms $ mkStdGen 16723)
 
   f :: Int -> Int -> PixelYA8
   f m n | even m && even n = a pixels
